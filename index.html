@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Kampala CBD Fire Map</title>
+<meta name="author" content="Gava Charles">
 <meta name="description" content="Interactive map of fire-spread groups, fire-appliance access, response times, building heights and block priority for 11,107 buildings in Kampala's central business district.">
 <style>*, *::before, *::after { box-sizing: border-box; } body { margin: 0; } [hidden] { display: none !important; }</style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -62,6 +63,7 @@ h1 { font-family: var(--font-display); font-weight: 600; font-size: 30px; line-h
 .modes button:focus-visible, .seg button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .seg { display: inline-flex; gap: 4px; }
 .seg button { text-align: center; padding: 6px 12px; }
+#rotL, #rotR { font-size: 17px; line-height: 1; }
 .whatif { display: flex; flex-direction: column; gap: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; }
 .ctl { display: flex; flex-direction: column; gap: 6px; }
 .ctl-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
@@ -83,7 +85,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .info dd { margin: 0; font-family: var(--font-data); font-variant-numeric: tabular-nums; text-align: right; }
 .note { color: var(--muted); font-size: 12px; }
 .src { color: var(--muted); font-size: 11.5px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: auto; }
-.viewbar { position: absolute; top: max(12px, env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
+.credit { margin: 8px 0 0; font-size: 13px; }
+.credit strong { font-weight: 600; }
+.hint { font-size: 11.5px; color: var(--muted); text-align: center; }
+.viewbar { display: flex; flex-direction: column; gap: 4px; align-items: stretch; position: absolute; top: max(12px, env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
 .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-family: var(--font-display); font-size: 18px; letter-spacing: 0.05em; }
 @media (max-width: 760px) {
   .app { grid-template-columns: 1fr; grid-template-rows: 58vh auto; height: auto; }
@@ -99,6 +104,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
     <header>
       <h1>Kampala CBD Fire Map</h1>
       <p class="sub">11,107 buildings within 1.5 km of Kampala Road, from open satellite and map data. No field survey.</p>
+      <p class="credit">Map and analysis by <strong>Gava Charles</strong></p>
     </header>
 
     <section>
@@ -145,16 +151,24 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
       <dl id="infoList" hidden></dl>
     </section>
 
-    <p class="src">Buildings: Overture Maps 2026-10-21 (OpenStreetMap, Google Open Buildings, Microsoft). Roads and features © OpenStreetMap contributors, ODbL. Heights: Google Open Buildings 2.5D (2023), calibrated; right height band for 56% of checked buildings. Drive times use assumed speeds by road class. Surface heat: Landsat 8/9, relative values.</p>
+    <p class="src">Map and analysis: Gava Charles, 2026. Buildings: Overture Maps 2026-10-21 (OpenStreetMap, Google Open Buildings, Microsoft). Roads and features © OpenStreetMap contributors, ODbL. Heights: Google Open Buildings 2.5D (2023), calibrated; right height band for 56% of checked buildings. Drive times use assumed speeds by road class. Surface heat: Landsat 8/9, relative values.</p>
   </aside>
 
   <main class="map">
     <div id="deck"></div>
     <div class="loading" id="loading">Loading 11,107 buildings…</div>
-    <div class="viewbar"><div class="seg" role="group" aria-label="View">
-      <button data-view="2d" aria-pressed="true">2D</button>
-      <button data-view="3d" aria-pressed="false">3D</button>
-    </div></div>
+    <div class="viewbar">
+      <div class="seg" role="group" aria-label="View">
+        <button data-view="2d" aria-pressed="true">2D</button>
+        <button data-view="3d" aria-pressed="false">3D</button>
+      </div>
+      <div class="seg" role="group" aria-label="Rotate map">
+        <button id="rotL" aria-label="Rotate left" title="Rotate left">↺</button>
+        <button id="north" aria-label="Turn north up" title="North up">N</button>
+        <button id="rotR" aria-label="Rotate right" title="Rotate right">↻</button>
+      </div>
+      <span class="hint">or right-drag · Ctrl-drag · two-finger twist</span>
+    </div>
   </main>
 </div>
 
@@ -258,7 +272,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
       new deck.PathLayer({ id: "circle", data: [D.circle], getPath: d => d, widthUnits: "pixels", getWidth: 1.2,
         getColor: [...tokens.muted, 160] }),
       new deck.PolygonLayer({ id: "markets", data: D.markets, getPolygon: d => d.ring, positionFormat: "XY",
-        filled: false, stroked: true, lineWidthUnits: "pixels", getLineWidth: 2, getLineColor: tokens.accent }),
+        filled: false, stroked: true, lineWidthUnits: "pixels", getLineWidth: 2, getLineColor: tokens.accent, pickable: true }),
       new deck.PolygonLayer({ id: "b", data: idx, getPolygon: i => D.b.ring[i], positionFormat: "XY",
         filled: true, stroked: false, extruded: is3d, wireframe: false,
         getElevation: i => Math.max(D.b.h[i], 2.5), elevationScale: 1,
@@ -267,7 +281,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
         updateTriggers: { getFillColor: [...trig, state.picked] } }),
       new deck.ScatterplotLayer({ id: "stations", data: D.meta.stations.slice(0, state.second ? 2 : 1).map((p, k) => ({ p, k })),
         getPosition: d => d.p, radiusUnits: "pixels", getRadius: 8, stroked: true, lineWidthUnits: "pixels",
-        getLineWidth: 3, getFillColor: d => d.k === 0 ? [227, 73, 72] : [255, 255, 255], getLineColor: [227, 73, 72],
+        getLineWidth: 3, getFillColor: d => d.k === 0 ? [227, 73, 72] : [255, 255, 255], getLineColor: [227, 73, 72], pickable: true,
         updateTriggers: { getFillColor: [state.second] } })
     ];
   }
@@ -297,6 +311,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
     if (i == null) return;
     const t = D.b.tt[speedKey()][i];
     const rows = [
+      ...(D.b.name[i] ? [["Name", esc(D.b.name[i])]] : []),
+      ...(D.b.places[i] ? [["Inside", D.b.places[i].map(esc).join("<br>")]] : []),
       ["Estimated height", D.b.h[i].toFixed(0) + " m"],
       ["Footprint", fmt(D.b.area[i]) + " m²"],
       ["Gap to nearest", D.b.gap[i].toFixed(1) + " m"],
@@ -308,11 +324,29 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
     list.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
   }
 
+  const motion = ms => matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : ms;
+  function moveTo(changes, ms) {
+    state.vs = { ...state.vs, ...changes, transitionDuration: motion(ms) };
+    deckgl.setProps({ viewState: state.vs });
+  }
   function setView(v) {
     state.view = v;
-    const base = { longitude: D.meta.centre[0], latitude: D.meta.centre[1], zoom: 14.2, transitionDuration: matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 600 };
-    deckgl.setProps({ initialViewState: v === "3d" ? { ...base, pitch: 55, bearing: -25, zoom: 14.6 } : { ...base, pitch: 0, bearing: 0 } });
+    moveTo(v === "3d" ? { pitch: 55, maxPitch: 80, bearing: state.vs.bearing || -25 } : { pitch: 0, maxPitch: 0 }, 600);
     render();
+  }
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  function tooltip({ object, layer }) {
+    if (!layer || object == null) return null;
+    const style = { background: css("--panel"), color: css("--fg"), border: "1px solid " + css("--line"),
+      borderRadius: "6px", padding: "6px 9px", fontFamily: css("--font-body"), fontSize: "12.5px", maxWidth: "260px", lineHeight: "1.4" };
+    if (layer.id === "markets") return { html: `<b>${esc(object.name)}</b><br>Market`, style };
+    if (layer.id === "stations") return { html: object.k === 0 ? "<b>Kampala Fire Station</b>" : "<b>Modelled second station</b><br>Search zone, not a chosen site", style };
+    if (layer.id !== "b") return null;
+    const i = object, name = D.b.name[i], pl = D.b.places[i];
+    const head = name ? `<b>${esc(name)}</b>` : pl ? "<b>Building</b>" : "";
+    const inside = pl ? `<br>Inside: ${pl.map(esc).join(" · ")}` : "";
+    const facts = `${head || inside ? "<br>" : ""}<span style="opacity:.75">≈${D.b.h[i].toFixed(0)} m tall · ${D.b.gap[i].toFixed(1)} m to nearest building</span>`;
+    return { html: head + inside + facts, style };
   }
 
   // --- wiring -------------------------------------------------------------------------------
@@ -320,6 +354,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
     const b = e.target.closest("button[data-mode]"); if (!b) return; state.mode = b.dataset.mode; render();
   });
   document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
+  document.getElementById("rotL").addEventListener("click", () => moveTo({ bearing: (state.vs.bearing || 0) - 30 }, 350));
+  document.getElementById("rotR").addEventListener("click", () => moveTo({ bearing: (state.vs.bearing || 0) + 30 }, 350));
+  document.getElementById("north").addEventListener("click", () => moveTo({ bearing: 0 }, 350));
   document.getElementById("gap").addEventListener("input", e => { state.gap = +e.target.value; state.mode = "groups"; render(); });
   document.getElementById("speed").addEventListener("input", e => { state.speed = +e.target.value; state.mode = "response"; render(); });
   document.getElementById("second").addEventListener("change", e => { state.second = e.target.checked; state.mode = "response"; render(); });
@@ -333,10 +370,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
     D = data; N = D.meta.n; idx = Array.from({ length: N }, (_, i) => i);
     state.heatQ = quantiles(D.b.lst, [0.2, 0.4, 0.6, 0.8]);
     state.prioQ = quantiles(D.b.prio, [0.2, 0.4, 0.6, 0.8]);
+    state.vs = { longitude: D.meta.centre[0], latitude: D.meta.centre[1], zoom: 14.2, pitch: 0, bearing: 0, maxPitch: 0 };
     deckgl = new deck.Deck({
       parent: document.getElementById("deck"),
-      initialViewState: { longitude: D.meta.centre[0], latitude: D.meta.centre[1], zoom: 14.2, pitch: 0, bearing: 0 },
-      controller: true,
+      viewState: state.vs,
+      onViewStateChange: ({ viewState }) => { state.vs = viewState; deckgl.setProps({ viewState }); },
+      controller: { dragRotate: true, touchRotate: true, keyboard: true },
+      getTooltip: tooltip,
       layers: layers(),
       onClick: info => { state.picked = info.layer && info.layer.id === "b" ? info.object : null; render(); },
       getCursor: ({ isHovering }) => isHovering ? "pointer" : "grab"
