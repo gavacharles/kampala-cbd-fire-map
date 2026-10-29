@@ -184,7 +184,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   const hex = h => { const n = parseInt(h.replace("#", ""), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
   const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   function readTokens() {
-    for (const t of ["map", "road", "road-major", "building", "accent", "accent-soft", "fg", "muted"]) tokens[t] = hex(css("--" + t));
+    for (const t of ["map", "road", "road-major", "building", "accent", "accent-soft", "fg", "muted", "panel"]) tokens[t] = hex(css("--" + t));
   }
   const pct = (k, n) => (100 * k / n).toFixed(0) + "%";
   const fmt = n => n.toLocaleString("en-GB");
@@ -282,7 +282,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
       new deck.ScatterplotLayer({ id: "stations", data: D.meta.stations.slice(0, state.second ? 2 : 1).map((p, k) => ({ p, k })),
         getPosition: d => d.p, radiusUnits: "pixels", getRadius: 8, stroked: true, lineWidthUnits: "pixels",
         getLineWidth: 3, getFillColor: d => d.k === 0 ? [227, 73, 72] : [255, 255, 255], getLineColor: [227, 73, 72], pickable: true,
-        updateTriggers: { getFillColor: [state.second] } })
+        updateTriggers: { getFillColor: [state.second] } }),
+      new deck.TextLayer({ id: "station-labels",
+        data: D.meta.stations.slice(0, state.second ? 2 : 1).map((p, k) => ({ p, k })),
+        getPosition: d => d.p, getText: d => d.k === 0 ? "Kampala Fire Station" : "Modelled second station",
+        fontFamily: "Public Sans, Helvetica Neue, Arial, sans-serif", fontWeight: 600, getSize: 13,
+        getColor: tokens.fg, getTextAnchor: "start", getAlignmentBaseline: "center", getPixelOffset: [14, 0],
+        background: true, getBackgroundColor: [...tokens.panel, 235], backgroundPadding: [6, 3, 6, 3],
+        getBorderColor: [227, 73, 72], getBorderWidth: 1,
+        parameters: { depthCompare: "always" },
+        updateTriggers: { getColor: [tokens.fg.join()], getBackgroundColor: [tokens.panel.join()] } })
     ];
   }
 
