@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kampala CBD Fire Map</title>
+<meta name="description" content="Interactive map of fire-spread groups, fire-appliance access, response times, building heights and block priority for 11,107 buildings in Kampala's central business district.">
+<style>*, *::before, *::after { box-sizing: border-box; } body { margin: 0; } [hidden] { display: none !important; }</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one-screen map tool. Control rail on the left (stacks under the map on phones), map fills the rest. */
+:root {
+  --bg: #f6f6f3;
+  --panel: #ffffff;
+  --map: #eceae4;
+  --fg: #16181b;
+  --muted: #5d6066;
+  --line: #d9d7d0;
+  --road: #ffffff;
+  --road-major: #c9c6bd;
+  --building: #b9b6ad;
+  --accent: #d9541c;
+  --accent-soft: #f2b597;
+  --focus: #2a78d6;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Public Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-data: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171a; --panel: #1c1f23; --map: #101214; --fg: #eceae4; --muted: #a3a6ac; --line: #30343a;
+    --road: #2a2e33; --road-major: #3e434a; --building: #4a4e55; --accent: #ef7a45; --accent-soft: #8a4a2c;
+    --focus: #5aa2f0; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171a; --panel: #1c1f23; --map: #101214; --fg: #eceae4; --muted: #a3a6ac; --line: #30343a;
+  --road: #2a2e33; --road-major: #3e434a; --building: #4a4e55; --accent: #ef7a45; --accent-soft: #8a4a2c;
+  --focus: #5aa2f0; color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.45; }
+.app { height: 100%; display: grid; grid-template-columns: minmax(300px, 360px) 1fr; }
+.rail {
+  background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; min-width: 0;
+  padding-block: 18px 24px; padding-left: max(18px, env(safe-area-inset-left, 0px)); padding-right: 18px;
+  display: flex; flex-direction: column; gap: 18px;
+}
+.map { position: relative; background: var(--map); min-width: 0; }
+#deck { position: absolute; inset: 0; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 30px; line-height: 1; letter-spacing: 0.01em; margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); margin: 6px 0 0; font-size: 13px; }
+.label { font-family: var(--font-display); font-weight: 500; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.modes button, .seg button {
+  font: inherit; font-size: 13px; text-align: left; padding: 8px 10px; border-radius: 6px; cursor: pointer;
+  background: transparent; color: var(--fg); border: 1px solid var(--line);
+}
+.modes button[aria-pressed="true"], .seg button[aria-pressed="true"] { border-color: var(--fg); background: var(--bg); font-weight: 600; }
+.modes button:focus-visible, .seg button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.seg { display: inline-flex; gap: 4px; }
+.seg button { text-align: center; padding: 6px 12px; }
+.whatif { display: flex; flex-direction: column; gap: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; }
+.ctl { display: flex; flex-direction: column; gap: 6px; }
+.ctl-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.ctl label { font-weight: 500; }
+.val { font-family: var(--font-data); font-size: 13px; font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.check { display: flex; align-items: center; gap: 8px; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; }
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat .big { font-family: var(--font-display); font-weight: 600; font-size: 40px; line-height: 1; font-variant-numeric: tabular-nums; }
+.stat .what { color: var(--muted); font-size: 13px; }
+.stat2 { color: var(--muted); font-size: 13px; }
+.legend { display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+.legend div { display: flex; align-items: center; gap: 8px; }
+.sw { width: 14px; height: 14px; border-radius: 3px; flex: none; }
+.info { font-size: 13px; border-top: 1px solid var(--line); padding-top: 14px; }
+.info dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; }
+.info dt { color: var(--muted); }
+.info dd { margin: 0; font-family: var(--font-data); font-variant-numeric: tabular-nums; text-align: right; }
+.note { color: var(--muted); font-size: 12px; }
+.src { color: var(--muted); font-size: 11.5px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: auto; }
+.viewbar { position: absolute; top: max(12px, env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-family: var(--font-display); font-size: 18px; letter-spacing: 0.05em; }
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: 58vh auto; height: auto; }
+  .map { order: -1; height: 58vh; }
+  .rail { border-right: none; border-top: 1px solid var(--line); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); overflow: visible; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail">
+    <header>
+      <h1>Kampala CBD Fire Map</h1>
+      <p class="sub">11,107 buildings within 1.5 km of Kampala Road, from open satellite and map data. No field survey.</p>
+    </header>
+
+    <section>
+      <p class="label">Show</p>
+      <div class="modes" id="modes" role="group" aria-label="Map layer">
+        <button data-mode="groups">Fire-spread groups</button>
+        <button data-mode="reach">Hose reach</button>
+        <button data-mode="response">Response time</button>
+        <button data-mode="height">Height</button>
+        <button data-mode="spacing">Spacing</button>
+        <button data-mode="heat">Surface heat</button>
+        <button data-mode="priority">Block priority</button>
+      </div>
+    </section>
+
+    <section class="whatif" aria-label="What if">
+      <p class="label" style="margin:0">What if…</p>
+      <div class="ctl">
+        <div class="ctl-row"><label for="gap">Fire jumps gaps up to</label><span class="val" id="gapVal">6 m</span></div>
+        <input type="range" id="gap" min="0" max="10" step="1" value="6">
+      </div>
+      <div class="ctl">
+        <div class="ctl-row"><label for="speed">Traffic speed cap</label><span class="val" id="speedVal">15 km/h</span></div>
+        <input type="range" id="speed" min="0" max="5" step="1" value="3">
+      </div>
+      <label class="check" for="second"><input type="checkbox" id="second"> Add a second fire station (modelled site)</label>
+    </section>
+
+    <section class="stat" aria-live="polite">
+      <span class="big" id="statBig">–</span>
+      <span class="what" id="statWhat"></span>
+      <span class="stat2" id="statMore"></span>
+    </section>
+
+    <section>
+      <p class="label" id="legendTitle">Legend</p>
+      <div class="legend" id="legend"></div>
+      <p class="note" id="modeNote"></p>
+    </section>
+
+    <section class="info" id="info">
+      <p class="label">Building</p>
+      <p class="note" id="infoEmpty">Tap a building for its details.</p>
+      <dl id="infoList" hidden></dl>
+    </section>
+
+    <p class="src">Buildings: Overture Maps 2026-10-21 (OpenStreetMap, Google Open Buildings, Microsoft). Roads and features © OpenStreetMap contributors, ODbL. Heights: Google Open Buildings 2.5D (2023), calibrated; right height band for 56% of checked buildings. Drive times use assumed speeds by road class. Surface heat: Landsat 8/9, relative values.</p>
+  </aside>
+
+  <main class="map">
+    <div id="deck"></div>
+    <div class="loading" id="loading">Loading 11,107 buildings…</div>
+    <div class="viewbar"><div class="seg" role="group" aria-label="View">
+      <button data-view="2d" aria-pressed="true">2D</button>
+      <button data-view="3d" aria-pressed="false">3D</button>
+    </div></div>
+  </main>
+</div>
+
+<script src="https://unpkg.com/deck.gl@9.0.38/dist.min.js"></script>
+<script>
+(function () {
+  const RAMP = ["#cde2fb", "#86b6ef", "#3987e5", "#1c5cab", "#0d366b"];
+  const HEAT = ["#fde3d3", "#f8b993", "#f08a55", "#d9541c", "#9c3510"];
+  const SPEED_LABELS = ["free flow", "25 km/h", "20 km/h", "15 km/h", "10 km/h", "8 km/h"];
+  const state = { mode: "groups", view: "2d", gap: 6, speed: 3, second: false, picked: null };
+  let D, N, deckgl, idx, tokens = {};
+
+  const hex = h => { const n = parseInt(h.replace("#", ""), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  function readTokens() {
+    for (const t of ["map", "road", "road-major", "building", "accent", "accent-soft", "fg", "muted"]) tokens[t] = hex(css("--" + t));
+  }
+  const pct = (k, n) => (100 * k / n).toFixed(0) + "%";
+  const fmt = n => n.toLocaleString("en-GB");
+
+  function speedKey() { const s = D.meta.speeds[state.speed]; return s + (state.second ? "_two" : "_one"); }
+
+  // --- per-mode colouring, legend, stats ---------------------------------------------------
+  const MODES = {
+    groups: {
+      title: "Buildings in the connected group",
+      legend: () => [["Isolated", tokens.building], ["2–9", hex(RAMP[1])], ["10–49", hex(RAMP[2])], ["50–199", hex(RAMP[3])], ["200+", hex(RAMP[4])]],
+      color: i => { const g = D.b.groups[state.gap][i]; return g <= 1 ? tokens.building : g <= 9 ? hex(RAMP[1]) : g <= 49 ? hex(RAMP[2]) : g <= 199 ? hex(RAMP[3]) : hex(RAMP[4]); },
+      stats: () => {
+        const g = D.b.groups[state.gap]; let big = 0, max = 0;
+        for (let i = 0; i < N; i++) { if (g[i] >= 50) big++; if (g[i] > max) max = g[i]; }
+        return [pct(big, N), `of buildings sit in groups of 50 or more linked by gaps under ${state.gap} m`, `Largest group: ${fmt(max)} buildings`];
+      },
+      note: () => "Buildings are linked when the gap between footprints is below the threshold. Footprints are accurate to about 1–3 m, so thresholds under 3 m are indicative."
+    },
+    reach: {
+      title: "Farthest point of building from a road",
+      legend: () => [["Beyond 45 m even via service roads", tokens.accent], ["Within 45 m only via service roads", tokens["accent-soft"]], ["Within 45 m of a public road", tokens.building]],
+      color: i => D.b.farAny[i] > 45 ? tokens.accent : D.b.farPub[i] > 45 ? tokens["accent-soft"] : tokens.building,
+      stats: () => {
+        let a = 0, p = 0; for (let i = 0; i < N; i++) { if (D.b.farAny[i] > 45) a++; if (D.b.farPub[i] > 45) p++; }
+        return [`${pct(a, N)}–${pct(p, N)}`, "of buildings extend more than 45 m (one hose length) from a road a fire appliance can use", "Range: service roads counted vs public roads only"];
+      },
+      note: () => "Straight-line distance to the road centreline. Walls, gates and stalls make real hose runs longer."
+    },
+    response: {
+      title: "Drive time from fire station",
+      legend: () => [["≤ 4 min", hex(RAMP[0])], ["4–6 min", hex(RAMP[1])], ["6–8 min", hex(RAMP[2])], ["8–12 min", hex(RAMP[3])], ["> 12 min", hex(RAMP[4])]],
+      color: i => { const t = D.b.tt[speedKey()][i]; return hex(RAMP[t <= 4 ? 0 : t <= 6 ? 1 : t <= 8 ? 2 : t <= 12 ? 3 : 4]); },
+      stats: () => {
+        const tt = D.b.tt[speedKey()]; let f = 0, e = 0;
+        for (let i = 0; i < N; i++) { if (tt[i] <= 4) f++; if (tt[i] <= 8) e++; }
+        return [pct(f, N), `of buildings within a 4-minute drive (${SPEED_LABELS[state.speed]}${state.second ? ", two stations" : ""})`, `Within 8 minutes: ${pct(e, N)}. NFPA 1710 benchmark: 4 min travel for the first engine.`];
+      },
+      note: () => "Travel time only; call handling and turnout add to it. Speeds by road class are assumptions, capped by the slider."
+    },
+    height: {
+      title: "Estimated height",
+      legend: () => [["≤ 5 m", tokens.building], ["5–11 m", hex(RAMP[1])], ["11–18 m", hex(RAMP[2])], ["18–30 m", hex(RAMP[3])], ["> 30 m", hex(RAMP[4])]],
+      color: i => { const h = D.b.h[i]; return h <= 5 ? tokens.building : h <= 11 ? hex(RAMP[1]) : h <= 18 ? hex(RAMP[2]) : h <= 30 ? hex(RAMP[3]) : hex(RAMP[4]); },
+      stats: () => { let t = 0; for (let i = 0; i < N; i++) if (D.b.h[i] > 18) t++; return [fmt(t), "buildings above 18 m, where UK guidance requires firefighting shafts and rising mains", "They hold about 44% of estimated floor area"]; },
+      note: () => "Satellite-estimated heights; about ±3 storeys. Switch to 3D to see them extruded."
+    },
+    spacing: {
+      title: "Gap to nearest neighbour",
+      legend: () => [["< 2 m", hex(RAMP[4])], ["2–6 m", hex(RAMP[2])], ["6–12 m", hex(RAMP[1])], ["≥ 12 m", tokens.building]],
+      color: i => { const g = D.b.gap[i]; return g < 2 ? hex(RAMP[4]) : g < 6 ? hex(RAMP[2]) : g < 12 ? hex(RAMP[1]) : tokens.building; },
+      stats: () => { let c = 0; for (let i = 0; i < N; i++) if (D.b.gap[i] < 2) c++; return [pct(c, N), "of buildings stand within 2 m of a neighbour", "There, UK guidance (Approved Document B, B4) allows almost no openings in the facing wall"]; },
+      note: () => "Gap measured footprint to footprint."
+    },
+    heat: {
+      title: "Dry-season surface temperature (relative)",
+      legend: () => ["Coolest fifth", "", "", "", "Hottest fifth"].map((l, k) => [l || "·", hex(HEAT[k])]),
+      color: i => { const v = D.b.lst[i]; if (v == null) return tokens.building; let k = 0; while (k < 4 && v > state.heatQ[k]) k++; return hex(HEAT[k]); },
+      stats: () => ["+0.6 °C", "surface temperature per 10 points of building coverage (100 m blocks)", "Owino market is among the hottest areas"],
+      note: () => "Landsat 8/9 without atmospheric correction: read the pattern, not the absolute values."
+    },
+    priority: {
+      title: "Block priority quintile",
+      legend: () => [["Highest", tokens.accent], ["High", tokens["accent-soft"]], ["Middle", hex(RAMP[1])], ["Low", hex(RAMP[0])], ["Lowest / no data", tokens.building]],
+      color: i => { const p = D.b.prio[i]; if (p == null) return tokens.building; let k = 0; while (k < 4 && p > state.prioQ[k]) k++; return [tokens.building, hex(RAMP[0]), hex(RAMP[1]), tokens["accent-soft"], tokens.accent][k]; },
+      stats: () => ["4 measures", "combined per 100 m block: group size, hose reach, congested drive time and surface heat", "Equal weights: a choice, not a finding"],
+      note: () => "Each block's four percentiles are averaged; the map shows quintiles of the result."
+    }
+  };
+
+  function quantiles(arr, qs) {
+    const v = arr.filter(x => x != null).sort((a, b) => a - b);
+    return qs.map(q => v[Math.floor(q * (v.length - 1))]);
+  }
+
+  // --- layers -------------------------------------------------------------------------------
+  function layers() {
+    const m = MODES[state.mode];
+    const is3d = state.view === "3d";
+    const trig = [state.mode, state.gap, state.speed, state.second, tokens.building.join()];
+    return [
+      new deck.PathLayer({ id: "roads", data: D.roads, getPath: d => d.p, widthUnits: "meters",
+        getWidth: d => d.c === 0 ? 9 : d.c === 1 ? 6 : 3.5, getColor: d => d.c < 2 ? tokens["road-major"] : tokens.road,
+        updateTriggers: { getColor: [tokens.road.join()] } }),
+      new deck.PathLayer({ id: "circle", data: [D.circle], getPath: d => d, widthUnits: "pixels", getWidth: 1.2,
+        getColor: [...tokens.muted, 160] }),
+      new deck.PolygonLayer({ id: "markets", data: D.markets, getPolygon: d => d.ring, positionFormat: "XY",
+        filled: false, stroked: true, lineWidthUnits: "pixels", getLineWidth: 2, getLineColor: tokens.accent }),
+      new deck.PolygonLayer({ id: "b", data: idx, getPolygon: i => D.b.ring[i], positionFormat: "XY",
+        filled: true, stroked: false, extruded: is3d, wireframe: false,
+        getElevation: i => Math.max(D.b.h[i], 2.5), elevationScale: 1,
+        getFillColor: i => i === state.picked ? tokens.fg : m.color(i),
+        pickable: true, material: { ambient: 0.55, diffuse: 0.55, shininess: 8 },
+        updateTriggers: { getFillColor: [...trig, state.picked] } }),
+      new deck.ScatterplotLayer({ id: "stations", data: D.meta.stations.slice(0, state.second ? 2 : 1).map((p, k) => ({ p, k })),
+        getPosition: d => d.p, radiusUnits: "pixels", getRadius: 8, stroked: true, lineWidthUnits: "pixels",
+        getLineWidth: 3, getFillColor: d => d.k === 0 ? [227, 73, 72] : [255, 255, 255], getLineColor: [227, 73, 72],
+        updateTriggers: { getFillColor: [state.second] } })
+    ];
+  }
+
+  function render() {
+    const m = MODES[state.mode];
+    const [big, what, more] = m.stats();
+    document.getElementById("statBig").textContent = big;
+    document.getElementById("statWhat").textContent = what;
+    document.getElementById("statMore").textContent = more;
+    document.getElementById("legendTitle").textContent = m.title;
+    document.getElementById("modeNote").textContent = m.note();
+    document.getElementById("legend").innerHTML = m.legend().map(([l, c]) =>
+      `<div><span class="sw" style="background:rgb(${c.join(",")})"></span>${l}</div>`).join("");
+    document.querySelectorAll("#modes button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode)));
+    document.querySelectorAll("[data-view]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.view === state.view)));
+    document.getElementById("gapVal").textContent = state.gap + " m";
+    document.getElementById("speedVal").textContent = SPEED_LABELS[state.speed];
+    renderInfo();
+    if (deckgl) deckgl.setProps({ layers: layers() });
+  }
+
+  function renderInfo() {
+    const i = state.picked, list = document.getElementById("infoList");
+    document.getElementById("infoEmpty").hidden = i != null;
+    list.hidden = i == null;
+    if (i == null) return;
+    const t = D.b.tt[speedKey()][i];
+    const rows = [
+      ["Estimated height", D.b.h[i].toFixed(0) + " m"],
+      ["Footprint", fmt(D.b.area[i]) + " m²"],
+      ["Gap to nearest", D.b.gap[i].toFixed(1) + " m"],
+      [`Group size (${state.gap} m)`, fmt(D.b.groups[state.gap][i])],
+      ["Farthest point to road", `${D.b.farAny[i]}–${D.b.farPub[i]} m`],
+      [`Drive time (${SPEED_LABELS[state.speed]})`, t >= 99 ? "no route" : t.toFixed(1) + " min"],
+      ["Footprint source", D.meta.sources[D.b.src[i]]]
+    ];
+    list.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+  }
+
+  function setView(v) {
+    state.view = v;
+    const base = { longitude: D.meta.centre[0], latitude: D.meta.centre[1], zoom: 14.2, transitionDuration: matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 600 };
+    deckgl.setProps({ initialViewState: v === "3d" ? { ...base, pitch: 55, bearing: -25, zoom: 14.6 } : { ...base, pitch: 0, bearing: 0 } });
+    render();
+  }
+
+  // --- wiring -------------------------------------------------------------------------------
+  document.getElementById("modes").addEventListener("click", e => {
+    const b = e.target.closest("button[data-mode]"); if (!b) return; state.mode = b.dataset.mode; render();
+  });
+  document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
+  document.getElementById("gap").addEventListener("input", e => { state.gap = +e.target.value; state.mode = "groups"; render(); });
+  document.getElementById("speed").addEventListener("input", e => { state.speed = +e.target.value; state.mode = "response"; render(); });
+  document.getElementById("second").addEventListener("change", e => { state.second = e.target.checked; state.mode = "response"; render(); });
+
+  const retheme = () => { readTokens(); render(); };
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", retheme);
+  new MutationObserver(retheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  readTokens();
+  fetch("data.json").then(r => r.json()).then(data => {
+    D = data; N = D.meta.n; idx = Array.from({ length: N }, (_, i) => i);
+    state.heatQ = quantiles(D.b.lst, [0.2, 0.4, 0.6, 0.8]);
+    state.prioQ = quantiles(D.b.prio, [0.2, 0.4, 0.6, 0.8]);
+    deckgl = new deck.Deck({
+      parent: document.getElementById("deck"),
+      initialViewState: { longitude: D.meta.centre[0], latitude: D.meta.centre[1], zoom: 14.2, pitch: 0, bearing: 0 },
+      controller: true,
+      layers: layers(),
+      onClick: info => { state.picked = info.layer && info.layer.id === "b" ? info.object : null; render(); },
+      getCursor: ({ isHovering }) => isHovering ? "pointer" : "grab"
+    });
+    document.getElementById("loading").hidden = true;
+    render();
+  }).catch(() => {
+    document.getElementById("loading").textContent = "The map data did not load. Reload the page to try again.";
+  });
+})();
+</script>
+</body>
+</html>
