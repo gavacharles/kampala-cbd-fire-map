@@ -22,6 +22,8 @@ Interactive map of fire safety conditions in Kampala's central business district
 
 Overlays: documented fires from press reports (incomplete, approximate locations) and a Sentinel-2 satellite image. **Harden the shortlist** treats 324 buildings chosen by network position as breaks and recomputes the groups; tap any building to harden it yourself. Use the search box to find a building, business or market, and copy a link to share any view.
 
+**Showcase view:** the Showcase button opens a full-screen, orbiting 3D scene of the fire-spread groups, ready to present or record. Esc or "Back to the map" returns. A fixed-size version for social stills and video: `#v=show&w=1080&h=1080&b=-20` (`b` sets the bearing).
+
 ## Data and caveats
 
 Desk study on open data; no field survey.

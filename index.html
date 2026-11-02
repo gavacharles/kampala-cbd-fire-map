@@ -9,7 +9,7 @@
 <style>*, *::before, *::after { box-sizing: border-box; } body { margin: 0; } [hidden] { display: none !important; }</style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: one-screen map tool. Control rail on the left (stacks under the map on phones), map fills the rest. */
 :root {
@@ -106,6 +106,31 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .fire-item:first-of-type { border-top: none; }
 .fire-item b { font-weight: 600; }
 .fire-item a { color: var(--focus); font-size: 12px; }
+/* Showcase: full-bleed dark 3D scene with title, key figure, legend and credit. --u scales it to any size. */
+.showcase { display: none; position: absolute; inset: 0; pointer-events: none; color: #f1efe9; --display: "Barlow Condensed", "Arial Narrow", Arial, sans-serif; --body: "Public Sans", "Helvetica Neue", Arial, sans-serif; }
+body.show { background: #0e1114; overflow: hidden; }
+body.show .app { display: block; }
+body.show .rail, body.show .viewbar { display: none; }
+body.show .map { position: fixed; left: 0; top: 0; width: var(--show-w, 100vw); height: var(--show-h, 100vh); background: #0e1114; }
+body.show .showcase { display: block; }
+.showcase .scrim { position: absolute; inset: 0 0 auto 0; height: 44%; background: linear-gradient(#0e1114 55%, transparent); }
+.showcase .top { position: absolute; left: 6%; top: 5%; right: 6%; }
+.showcase .eyebrow { font-family: var(--display); font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #ef7a45; font-size: calc(var(--u) * 2.1); }
+.showcase h2 { font-family: var(--display); font-weight: 700; font-size: calc(var(--u) * 7.2); line-height: 0.92; margin: 0.15em 0 0; letter-spacing: 0.005em; }
+.showcase .lede { font-family: var(--body); font-size: calc(var(--u) * 2.2); color: #9ea3aa; margin: 0.6em 0 0; max-width: 34ch; line-height: 1.35; }
+.showcase .lede b { color: #f1efe9; font-weight: 600; }
+.showcase .slegend { position: absolute; left: 6%; bottom: 6%; font-family: var(--body); font-size: calc(var(--u) * 1.7); display: grid; gap: 0.45em; }
+.showcase .slegend .t { font-family: var(--display); font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #9ea3aa; font-size: calc(var(--u) * 1.6); }
+.showcase .slegend div { display: flex; align-items: center; gap: 0.6em; }
+.showcase .sw2 { width: 1em; height: 1em; border-radius: 2px; }
+.showcase .scredit { position: absolute; right: 6%; bottom: 6%; text-align: right; font-family: var(--body); }
+.showcase .by { font-size: calc(var(--u) * 2); font-weight: 600; }
+.showcase .ssrc { font-size: calc(var(--u) * 1.15); color: #9ea3aa; margin-top: 0.4em; max-width: 40ch; margin-left: auto; line-height: 1.35; }
+.showcase .sbar { position: absolute; top: 12px; right: 12px; display: flex; gap: 6px; pointer-events: auto; }
+.showcase .sbar button { font: 500 13px var(--body); padding: 7px 12px; border-radius: 6px; cursor: pointer; background: #1c1f23; color: #f1efe9; border: 1px solid #30343a; }
+.showcase .sbar button:hover { border-color: #f1efe9; }
+.showcase .sbar button:focus-visible { outline: 2px solid #5aa2f0; outline-offset: 2px; }
+body.card .sbar { display: none; }
 .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-family: var(--font-display); font-size: 18px; letter-spacing: 0.05em; }
 @media (max-width: 760px) {
   .app { grid-template-columns: 1fr; grid-template-rows: 58vh auto; height: auto; }
@@ -201,11 +226,29 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
   <main class="map">
     <div id="deck"></div>
+    <div class="showcase" id="showcase">
+      <div class="scrim"></div>
+      <div class="top">
+        <div class="eyebrow">Fire safety · Kampala, Uganda</div>
+        <h2>Kampala CBD<br>in 3D</h2>
+        <p class="lede"><b id="showStat">–</b> of the CBD's 11,107 buildings sit in groups of 50 or more with gaps under 6 m: room for a fire to jump from roof to roof.</p>
+      </div>
+      <div class="slegend" id="showLegend"></div>
+      <div class="scredit">
+        <div class="by">Map &amp; analysis: Gava Charles</div>
+        <div class="ssrc">Buildings: Overture Maps (OpenStreetMap, Google, Microsoft). Heights: Google Open Buildings 2.5D. © OpenStreetMap contributors, ODbL.</div>
+      </div>
+      <div class="sbar">
+        <button id="showOrbit">Pause</button>
+        <button id="showExit">Back to the map</button>
+      </div>
+    </div>
     <div class="loading" id="loading">Loading 11,107 buildings…</div>
     <div class="viewbar">
       <div class="seg" role="group" aria-label="View">
         <button data-view="2d" aria-pressed="true">2D</button>
         <button data-view="3d" aria-pressed="false">3D</button>
+        <button data-view="show" aria-pressed="false">Showcase</button>
       </div>
       <div class="seg" role="group" aria-label="Rotate map">
         <button id="rotL" aria-label="Rotate left" title="Rotate left">↺</button>
@@ -225,6 +268,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   const SPEED_LABELS = ["free flow", "25 km/h", "20 km/h", "15 km/h", "10 km/h", "8 km/h"];
   const FABRIC = ["#eb6834", "#0d366b", "#3987e5", "#f4b69b", "#e8e2c8", "#d9d7d2"];
   const HARD = [47, 125, 79];
+  const SHOW_CLASSES = [
+    { label: "Stands alone", max: 1, c: [74, 78, 85] },
+    { label: "2–9 buildings", max: 9, c: [47, 95, 158] },
+    { label: "10–49", max: 49, c: [57, 135, 229] },
+    { label: "50–199", max: 199, c: [244, 162, 120] },
+    { label: "200 or more", max: Infinity, c: [239, 91, 42] }
+  ];
+  const card = {};  // fixed-size render for the social stills and video: #v=show&w=1080&h=1080&b=-20
+  let orbit = null, savedTheme = null;
   const state = { mode: "groups", view: "2d", gap: 6, speed: 3, second: false, picked: null, sat: false, fires: true, hard: false, origin: null, step: 0, site: null };
   const extra = new Set();
   let D, N, deckgl, idx, adj, searchIndex, tokens = {}, timer = null, hardRev = 0;
@@ -422,7 +474,27 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   }
 
   // --- layers -------------------------------------------------------------------------------
+  function showLayers() {
+    const g = D.b.groups[6], st = D.meta.stations[0], size = Math.min(innerWidth, innerHeight);
+    const u = card.w ? Math.min(card.w, card.h) : size;
+    return [
+      new deck.PathLayer({ id: "roads", data: D.roads, getPath: d => d.p, widthUnits: "meters",
+        getWidth: d => d.c === 0 ? 10 : d.c === 1 ? 7 : 4, getColor: d => d.c < 2 ? [52, 58, 66] : [38, 43, 49] }),
+      new deck.PolygonLayer({ id: "b", data: idx, getPolygon: i => D.b.ring[i], positionFormat: "XY",
+        extruded: true, filled: true, stroked: false, getElevation: i => Math.max(D.b.h[i], 3), pickable: !card.w,
+        getFillColor: i => SHOW_CLASSES.find(k => g[i] <= k.max).c,
+        material: { ambient: 0.45, diffuse: 0.7, shininess: 12, specularColor: [70, 70, 70] } }),
+      new deck.ScatterplotLayer({ id: "show-station", data: [st], getPosition: d => [d[0], d[1], 4], radiusUnits: "pixels", getRadius: u / 110,
+        getFillColor: [227, 73, 72], stroked: true, lineWidthUnits: "pixels", getLineWidth: 2, getLineColor: [255, 255, 255] }),
+      new deck.TextLayer({ id: "show-station-label", data: [st], getPosition: d => [d[0], d[1], 4], getText: () => "Kampala Fire Station",
+        getSize: u / 62, getColor: [241, 239, 233], fontFamily: "Public Sans, Arial, sans-serif", fontWeight: 600, getTextAnchor: "start",
+        getAlignmentBaseline: "center", getPixelOffset: [u / 70, 0], background: true, getBackgroundColor: [14, 17, 20, 220],
+        backgroundPadding: [6, 3, 6, 3], parameters: { depthCompare: "always" } })
+    ];
+  }
+
   function layers() {
+    if (state.view === "show") return showLayers();
     const m = MODES[state.mode];
     const is3d = state.view === "3d";
     const trig = [state.mode, state.gap, state.speed, state.second, tokens.building.join(), state.hard, hardRev, state.origin, state.step];
@@ -536,7 +608,52 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
     state.vs = { ...state.vs, ...changes, transitionDuration: motion(ms) };
     deckgl.setProps({ viewState: state.vs });
   }
+  function showSize() {
+    const W = card.w || innerWidth, H = card.h || innerHeight;
+    document.getElementById("showcase").style.setProperty("--u", Math.min(W, H) / 100 + "px");
+    return [W, H];
+  }
+  function showViewState(bearing) {
+    const [W, H] = showSize(), tall = W / H < 0.8;
+    return { longitude: D.meta.centre[0] - 0.001, latitude: D.meta.centre[1] + (tall ? 0.0015 : 0.0012),
+      zoom: (tall ? 14.3 : 14.45) + Math.log2(Math.min(W, H) / 1080), pitch: 58, maxPitch: 80, bearing };
+  }
+  function stopOrbit() { if (orbit) cancelAnimationFrame(orbit); orbit = null; document.getElementById("showOrbit").textContent = "Orbit"; }
+  function startOrbit() {
+    if (card.w || motion(1) === 0) { stopOrbit(); return; }
+    document.getElementById("showOrbit").textContent = "Pause";
+    let last = performance.now();
+    const tick = now => {
+      state.vs = { ...state.vs, bearing: (state.vs.bearing || 0) + (now - last) * 0.009, transitionDuration: 0 };
+      last = now; deckgl.setProps({ viewState: state.vs }); orbit = requestAnimationFrame(tick);
+    };
+    orbit = requestAnimationFrame(tick);
+  }
+  function enterShow() {
+    stopPlay();
+    savedTheme = document.documentElement.getAttribute("data-theme");
+    document.documentElement.setAttribute("data-theme", "dark");
+    document.body.classList.add("show");
+    if (card.w) { document.body.classList.add("card"); document.body.style.setProperty("--show-w", card.w + "px"); document.body.style.setProperty("--show-h", card.h + "px"); }
+    let share = 0; for (const n of D.b.groups[6]) if (n >= 50) share++;
+    document.getElementById("showStat").textContent = pct(share, N);
+    document.getElementById("showLegend").innerHTML = '<span class="t">Buildings in the fire-spread group</span>' +
+      SHOW_CLASSES.map(k => `<div><span class="sw2" style="background:rgb(${k.c})"></span>${k.label}</div>`).join("");
+    state.vs = showViewState(card.b != null ? card.b : -20);
+    if (deckgl) deckgl.setProps({ viewState: state.vs });
+    startOrbit();
+  }
+  function exitShow() {
+    stopOrbit();
+    document.body.classList.remove("show");
+    if (savedTheme) document.documentElement.setAttribute("data-theme", savedTheme); else document.documentElement.removeAttribute("data-theme");
+    state.view = "3d";
+    state.vs = { longitude: D.meta.centre[0], latitude: D.meta.centre[1], zoom: 14.2, pitch: 55, maxPitch: 80, bearing: -25, transitionDuration: 0 };
+    deckgl.setProps({ viewState: state.vs });
+    render();
+  }
   function setView(v) {
+    if (v === "show") { state.view = "show"; enterShow(); render(); return; }
     state.view = v;
     moveTo(v === "3d" ? { pitch: 55, maxPitch: 80, bearing: state.vs.bearing || -25 } : { pitch: 0, maxPitch: 0 }, 600);
     render();
@@ -581,6 +698,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
     if (a === "fire") startFire(i);
     if (a === "harden") { if (extra.has(i)) extra.delete(i); else extra.add(i); hardRev++; render(); }
   });
+  document.getElementById("showExit").addEventListener("click", exitShow);
+  document.getElementById("showOrbit").addEventListener("click", () => { if (orbit) stopOrbit(); else startOrbit(); });
+  addEventListener("resize", () => { if (state.view === "show") showSize(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && state.view === "show" && !card.w) exitShow(); });
   document.getElementById("copyLink").addEventListener("click", async e => {
     syncHash();
     try { await navigator.clipboard.writeText(location.href); e.target.textContent = "Link copied"; }
@@ -590,7 +711,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   const searchBox = document.getElementById("search"), results = document.getElementById("results");
   searchBox.addEventListener("input", () => {
     const q = searchBox.value.trim().toLowerCase();
-    const hits = q.length < 2 ? [] : searchIndex.filter(s => s.key.includes(q)).slice(0, 8);
+    const seen = new Set();
+    const hits = q.length < 2 ? [] : searchIndex.filter(s => s.key.includes(q) && !seen.has(s.key) && seen.add(s.key)).slice(0, 8);
     results.hidden = !hits.length;
     results.innerHTML = hits.map((h, k) => `<button data-k="${searchIndex.indexOf(h)}">${esc(h.label)}</button>`).join("");
   });
@@ -607,7 +729,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   // --- shareable state in the URL -----------------------------------------------------------
   function syncHash() {
     const p = new URLSearchParams({ m: state.mode, g: state.gap, s: state.speed });
-    if (state.view === "3d") p.set("v", "3d");
+    if (card.w) return;
+    if (state.view !== "2d") p.set("v", state.view);
     if (state.second) p.set("two", 1);
     if (state.sat) p.set("sat", 1);
     if (!state.fires) p.set("nofires", 1);
@@ -624,11 +747,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
     const g = int("g", 0, 10); if (g != null) state.gap = g;
     const s = int("s", 0, 5); if (s != null) state.speed = s;
     state.second = p.has("two"); state.sat = p.has("sat"); state.fires = !p.has("nofires"); state.hard = p.has("hard");
-    state.picked = int("b", 0, N - 1); state.origin = int("o", 0, N - 1);
+    state.picked = p.get("v") === "show" ? null : int("b", 0, N - 1); state.origin = int("o", 0, N - 1);
     const st = int("st", 0, 9999); if (st != null) state.step = st;
     for (const x of (p.get("x") || "").split(".")) { const n = Number(x); if (x && Number.isInteger(n) && n >= 0 && n < N) extra.add(n); }
     if (extra.size) hardRev++;
-    if (p.get("v") === "3d") state.view = "3d";
+    if (p.get("v") === "3d" || p.get("v") === "show") state.view = p.get("v");
+    const w = int("w", 100, 8000), h = int("h", 100, 8000);
+    if (state.view === "show" && w && h) { card.w = w; card.h = h; const b = Number(p.get("b")); card.b = Number.isFinite(b) && p.has("b") ? b : -20; state.picked = null; }
     document.getElementById("gap").value = state.gap; document.getElementById("speed").value = state.speed;
     document.getElementById("second").checked = state.second; document.getElementById("sat").checked = state.sat;
     document.getElementById("fires").checked = state.fires; document.getElementById("hard").checked = state.hard;
@@ -657,14 +782,19 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
     for (const m of D.markets) searchIndex.push({ label: m.name, key: m.name.toLowerCase(), i: null, lon: m.ring[0], lat: m.ring[1] });
     readHash();
     state.vs = { longitude: D.meta.centre[0], latitude: D.meta.centre[1], zoom: 14.2, pitch: state.view === "3d" ? 55 : 0, bearing: state.view === "3d" ? -25 : 0, maxPitch: state.view === "3d" ? 80 : 0 };
+    if (state.view === "show") state.vs = showViewState(card.b != null ? card.b : -20);
     deckgl = new deck.Deck({
       parent: document.getElementById("deck"),
       viewState: state.vs,
-      onViewStateChange: ({ viewState }) => { state.vs = viewState; deckgl.setProps({ viewState }); },
+      onViewStateChange: ({ viewState, interactionState }) => {
+        if (orbit && interactionState && (interactionState.isDragging || interactionState.isPanning || interactionState.isRotating)) stopOrbit();
+        state.vs = viewState; deckgl.setProps({ viewState });
+      },
       controller: { dragRotate: true, touchRotate: true, keyboard: true },
       getTooltip: tooltip,
       layers: layers(),
       onClick: info => {
+        if (state.view === "show") return;
         const id = info.layer && info.layer.id;
         if (id === "fires") { state.site = info.object.site; state.picked = null; render(); return; }
         state.site = null;
@@ -675,6 +805,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
       getCursor: ({ isHovering }) => isHovering ? "pointer" : "grab"
     });
     document.getElementById("loading").hidden = true;
+    if (state.view === "show") enterShow();
     render();
   }).catch(() => {
     document.getElementById("loading").textContent = "The map data did not load. Reload the page to try again.";
