@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Kampala CBD Fire Map</title>
 <meta name="author" content="Gava Charles">
-<meta name="description" content="Interactive map of fire-spread groups, fire-appliance access, response times, building heights and block priority for 11,107 buildings in Kampala's central business district.">
+<meta name="description" content="Interactive map of fire paths, connected building groups, appliance access, response times, urban fabric and documented fires for 11,107 buildings in Kampala's central business district.">
 <style>*, *::before, *::after { box-sizing: border-box; } body { margin: 0; } [hidden] { display: none !important; }</style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -89,6 +89,23 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .credit strong { font-weight: 600; }
 .hint { font-size: 11.5px; color: var(--muted); text-align: center; }
 .viewbar { display: flex; flex-direction: column; gap: 4px; align-items: stretch; position: absolute; top: max(12px, env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
+.search { position: relative; }
+.search input { width: 100%; font: inherit; font-size: 13px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--fg); }
+.results { position: absolute; z-index: 5; left: 0; right: 0; top: 100%; margin-top: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.results button { display: block; width: 100%; font: inherit; font-size: 13px; text-align: left; padding: 7px 10px; background: transparent; color: var(--fg); border: none; cursor: pointer; }
+.results button:hover, .results button:focus-visible { background: var(--bg); outline: none; }
+.btn { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 6px; cursor: pointer; background: transparent; color: var(--fg); border: 1px solid var(--line); }
+.btn:hover { border-color: var(--fg); }
+.btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.btn.link { border: none; padding: 0; color: var(--muted); text-decoration: underline; font-size: 12.5px; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.firepanel { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--accent); border-radius: 8px; }
+.playrow { display: flex; align-items: center; gap: 10px; }
+.playrow input { flex: 1; min-width: 0; }
+.fire-item { padding-block: 8px; border-top: 1px solid var(--line); font-size: 13px; }
+.fire-item:first-of-type { border-top: none; }
+.fire-item b { font-weight: 600; }
+.fire-item a { color: var(--focus); font-size: 12px; }
 .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-family: var(--font-display); font-size: 18px; letter-spacing: 0.05em; }
 @media (max-width: 760px) {
   .app { grid-template-columns: 1fr; grid-template-rows: 58vh auto; height: auto; }
@@ -105,18 +122,46 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
       <h1>Kampala CBD Fire Map</h1>
       <p class="sub">11,107 buildings within 1.5 km of Kampala Road, from open satellite and map data. No field survey.</p>
       <p class="credit">Map and analysis by <strong>Gava Charles</strong></p>
+      <div class="actions"><button class="btn link" id="copyLink">Copy a link to this view</button></div>
     </header>
+
+    <section class="search" role="search">
+      <input id="search" type="search" placeholder="Find a building, business or market" aria-label="Find a building, business or market" autocomplete="off">
+      <div class="results" id="results" hidden></div>
+    </section>
 
     <section>
       <p class="label">Show</p>
       <div class="modes" id="modes" role="group" aria-label="Map layer">
+        <button data-mode="firepath">Fire path</button>
         <button data-mode="groups">Fire-spread groups</button>
         <button data-mode="reach">Hose reach</button>
         <button data-mode="response">Response time</button>
         <button data-mode="height">Height</button>
         <button data-mode="spacing">Spacing</button>
         <button data-mode="heat">Surface heat</button>
+        <button data-mode="fabric">Urban fabric</button>
+        <button data-mode="newbuild">New since 2016</button>
+        <button data-mode="routes">Appliance routes</button>
         <button data-mode="priority">Block priority</button>
+      </div>
+      <div class="ctl" style="margin-top:10px">
+        <label class="check" for="sat"><input type="checkbox" id="sat"> Satellite image (Sentinel-2, 10 m)</label>
+        <label class="check" for="fires"><input type="checkbox" id="fires" checked> Documented fires (press reports)</label>
+      </div>
+    </section>
+
+    <section class="stat" aria-live="polite">
+      <span class="big" id="statBig">–</span>
+      <span class="what" id="statWhat"></span>
+      <span class="stat2" id="statMore"></span>
+    </section>
+
+    <section class="firepanel" id="firePanel" aria-label="Fire path" hidden>
+      <div class="playrow">
+        <button class="btn" id="play">Play</button>
+        <input type="range" id="step" min="0" max="0" step="1" value="0" aria-label="Fire path step">
+        <span class="val" id="stepVal">0</span>
       </div>
     </section>
 
@@ -131,12 +176,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
         <input type="range" id="speed" min="0" max="5" step="1" value="3">
       </div>
       <label class="check" for="second"><input type="checkbox" id="second"> Add a second fire station (modelled site)</label>
-    </section>
-
-    <section class="stat" aria-live="polite">
-      <span class="big" id="statBig">–</span>
-      <span class="what" id="statWhat"></span>
-      <span class="stat2" id="statMore"></span>
+      <div class="ctl">
+        <label class="check" for="hard"><input type="checkbox" id="hard"> <span>Harden the shortlist (<span id="hardN">–</span> buildings)</span></label>
+        <span class="note" id="hardNote"></span>
+      </div>
     </section>
 
     <section>
@@ -146,12 +189,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
     </section>
 
     <section class="info" id="info">
-      <p class="label">Building</p>
+      <p class="label" id="infoTitle">Building</p>
       <p class="note" id="infoEmpty">Tap a building for its details.</p>
       <dl id="infoList" hidden></dl>
+      <div class="actions" id="infoActions" hidden></div>
+      <div id="fireInfo" hidden></div>
     </section>
 
-    <p class="src">Map and analysis: Gava Charles, 2026. Buildings: Overture Maps 2026-10-21 (OpenStreetMap, Google Open Buildings, Microsoft). Roads and features © OpenStreetMap contributors, ODbL. Heights: Google Open Buildings 2.5D (2023), calibrated; right height band for 56% of checked buildings. Drive times use assumed speeds by road class. Surface heat: Landsat 8/9, relative values.</p>
+    <p class="src">Map and analysis: Gava Charles, 2026. Buildings: Overture Maps 2026-10-21 (OpenStreetMap, Google Open Buildings, Microsoft). Roads and features © OpenStreetMap contributors, ODbL. Heights: Google Open Buildings 2.5D (2023), calibrated; right height band for 56% of checked buildings. Drive times use assumed speeds by road class. Surface heat: Landsat 8/9, relative values. Satellite image: modified Copernicus Sentinel data 2023–25. Fires: press reports, incomplete, locations approximate. Screening only: not an assessment of any individual building.</p>
   </aside>
 
   <main class="map">
@@ -178,8 +223,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   const RAMP = ["#cde2fb", "#86b6ef", "#3987e5", "#1c5cab", "#0d366b"];
   const HEAT = ["#fde3d3", "#f8b993", "#f08a55", "#d9541c", "#9c3510"];
   const SPEED_LABELS = ["free flow", "25 km/h", "20 km/h", "15 km/h", "10 km/h", "8 km/h"];
-  const state = { mode: "groups", view: "2d", gap: 6, speed: 3, second: false, picked: null };
-  let D, N, deckgl, idx, tokens = {};
+  const FABRIC = ["#eb6834", "#0d366b", "#3987e5", "#f4b69b", "#e8e2c8", "#d9d7d2"];
+  const HARD = [47, 125, 79];
+  const state = { mode: "groups", view: "2d", gap: 6, speed: 3, second: false, picked: null, sat: false, fires: true, hard: false, origin: null, step: 0, site: null };
+  const extra = new Set();
+  let D, N, deckgl, idx, adj, searchIndex, tokens = {}, timer = null, hardRev = 0;
 
   const hex = h => { const n = parseInt(h.replace("#", ""), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
   const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -189,20 +237,103 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   const pct = (k, n) => (100 * k / n).toFixed(0) + "%";
   const fmt = n => n.toLocaleString("en-GB");
 
+  // --- gap network: groups and fire paths recomputed live ------------------------------------
+  function hardened() {
+    const h = new Set(extra);
+    if (state.hard) for (const i of D.shortlist) h.add(i);
+    return h;
+  }
+  const memo = {};
+  function sizes() {
+    const h = hardened();
+    if (!h.size) return D.b.groups[state.gap];
+    const key = state.gap + "|" + state.hard + "|" + hardRev;
+    if (memo.sizeKey === key) return memo.size;
+    const parent = Int32Array.from({ length: N }, (_, i) => i);
+    const find = x => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+    const lim = state.gap * 100, L = D.links;
+    for (let k = 0; k < L.i.length; k++) {
+      if (L.g[k] > lim || h.has(L.i[k]) || h.has(L.j[k])) continue;
+      parent[find(L.i[k])] = find(L.j[k]);
+    }
+    const count = new Int32Array(N), out = new Int32Array(N);
+    for (let i = 0; i < N; i++) if (!h.has(i)) count[find(i)]++;
+    for (let i = 0; i < N; i++) out[i] = h.has(i) ? 0 : count[find(i)];
+    memo.sizeKey = key; memo.size = out;
+    return out;
+  }
+  function firePath() {
+    if (state.origin == null) return null;
+    const key = [state.origin, state.gap, state.hard, hardRev].join("|");
+    if (memo.fireKey === key) return memo.fire;
+    const h = hardened(), hops = new Int16Array(N).fill(-1), lim = state.gap * 100;
+    let max = 0, count = 1;
+    if (h.has(state.origin)) { count = 0; } else {
+      hops[state.origin] = 0;
+      let front = [state.origin];
+      while (front.length) {
+        const next = [];
+        for (const a of front) for (const [c, g] of adj[a]) {
+          if (g <= lim && hops[c] < 0 && !h.has(c)) { hops[c] = hops[a] + 1; max = hops[c]; count++; next.push(c); }
+        }
+        front = next;
+      }
+    }
+    memo.fireKey = key; memo.fire = { hops, max, count };
+    return memo.fire;
+  }
+  function stopPlay() { if (timer) { clearInterval(timer); timer = null; } document.getElementById("play").textContent = "Play"; }
+  function startPlay() {
+    const f = firePath(); if (!f) return;
+    if (motion(1) === 0) { state.step = f.max; render(); return; }
+    if (state.step >= f.max) state.step = 0;
+    document.getElementById("play").textContent = "Pause";
+    clearInterval(timer);
+    timer = setInterval(() => {
+      const cur = firePath();
+      if (!cur || state.step >= cur.max) { stopPlay(); return; }
+      state.step++; render();
+    }, 170);
+  }
+  function startFire(i) {
+    stopPlay(); state.mode = "firepath"; state.origin = i; state.step = 0; state.picked = i; state.site = null;
+    render(); startPlay();
+  }
+
   function speedKey() { const s = D.meta.speeds[state.speed]; return s + (state.second ? "_two" : "_one"); }
 
   // --- per-mode colouring, legend, stats ---------------------------------------------------
   const MODES = {
+    firepath: {
+      title: "Where a fire could travel",
+      legend: () => [["Origin", tokens.fg], ["First steps", hex(HEAT[4])], ["Later steps", hex(HEAT[1])], ["Not reached", tokens.building], ...(hardened().size ? [["Hardened", HARD]] : [])],
+      color: i => {
+        if (hardened().has(i)) return HARD;
+        const f = firePath(); if (!f) return tokens.building;
+        const k = f.hops[i];
+        if (k < 0 || k > state.step) return tokens.building;
+        if (k === 0) return tokens.fg;
+        return hex(HEAT[4 - Math.min(4, Math.floor(4.999 * (k - 1) / Math.max(f.max, 1)))]);
+      },
+      stats: () => {
+        const f = firePath();
+        if (!f) return ["Tap", "any building to start a fire there and watch the path it could take", "Then change the gap, or harden buildings, and try again"];
+        if (!f.count) return ["0", "buildings reached: this building is hardened", ""];
+        let r = 0; for (let i = 0; i < N; i++) if (f.hops[i] >= 0 && f.hops[i] <= state.step) r++;
+        return [fmt(r), `of ${fmt(f.count)} connected buildings reached by step ${state.step} of ${f.max}, crossing gaps under ${state.gap} m`, "A step is one building crossed, not a time or a likelihood"];
+      },
+      note: () => "Shows connection only. Real spread depends on walls, roofs, wind, fire load and firefighting, none of which is modelled here."
+    },
     groups: {
       title: "Buildings in the connected group",
-      legend: () => [["Isolated", tokens.building], ["2–9", hex(RAMP[1])], ["10–49", hex(RAMP[2])], ["50–199", hex(RAMP[3])], ["200+", hex(RAMP[4])]],
-      color: i => { const g = D.b.groups[state.gap][i]; return g <= 1 ? tokens.building : g <= 9 ? hex(RAMP[1]) : g <= 49 ? hex(RAMP[2]) : g <= 199 ? hex(RAMP[3]) : hex(RAMP[4]); },
+      legend: () => [["Isolated", tokens.building], ["2–9", hex(RAMP[1])], ["10–49", hex(RAMP[2])], ["50–199", hex(RAMP[3])], ["200+", hex(RAMP[4])], ...(hardened().size ? [["Hardened", HARD]] : [])],
+      color: i => { const g = sizes()[i]; if (g === 0) return HARD; return g <= 1 ? tokens.building : g <= 9 ? hex(RAMP[1]) : g <= 49 ? hex(RAMP[2]) : g <= 199 ? hex(RAMP[3]) : hex(RAMP[4]); },
       stats: () => {
-        const g = D.b.groups[state.gap]; let big = 0, max = 0;
+        const g = sizes(); let big = 0, max = 0;
         for (let i = 0; i < N; i++) { if (g[i] >= 50) big++; if (g[i] > max) max = g[i]; }
         return [pct(big, N), `of buildings sit in groups of 50 or more linked by gaps under ${state.gap} m`, `Largest group: ${fmt(max)} buildings`];
       },
-      note: () => "Buildings are linked when the gap between footprints is below the threshold. Footprints are accurate to about 1–3 m, so thresholds under 3 m are indicative."
+      note: () => "Buildings are linked when the gap between footprints is below the threshold. Footprints are accurate to about 1–3 m, so thresholds under 3 m are indicative. Checked at 6 m against other data and simulated error: 32–52% in groups of 50 or more; the largest group ranges from 241 to 828."
     },
     reach: {
       title: "Farthest point of building from a road",
@@ -223,14 +354,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
         for (let i = 0; i < N; i++) { if (tt[i] <= 4) f++; if (tt[i] <= 8) e++; }
         return [pct(f, N), `of buildings within a 4-minute drive (${SPEED_LABELS[state.speed]}${state.second ? ", two stations" : ""})`, `Within 8 minutes: ${pct(e, N)}. NFPA 1710 benchmark: 4 min travel for the first engine.`];
       },
-      note: () => "Travel time only; call handling and turnout add to it. Speeds by road class are assumptions, capped by the slider."
+      note: () => "Travel time only: a lower limit on response, not an estimate. Speeds are assumptions. Press reports describe arrivals of an hour or more and trucks short of water, far worse than any setting here."
     },
     height: {
       title: "Estimated height",
       legend: () => [["≤ 5 m", tokens.building], ["5–11 m", hex(RAMP[1])], ["11–18 m", hex(RAMP[2])], ["18–30 m", hex(RAMP[3])], ["> 30 m", hex(RAMP[4])]],
       color: i => { const h = D.b.h[i]; return h <= 5 ? tokens.building : h <= 11 ? hex(RAMP[1]) : h <= 18 ? hex(RAMP[2]) : h <= 30 ? hex(RAMP[3]) : hex(RAMP[4]); },
       stats: () => { let t = 0; for (let i = 0; i < N; i++) if (D.b.h[i] > 18) t++; return [fmt(t), "buildings above 18 m, where UK guidance requires firefighting shafts and rising mains", "They hold about 44% of estimated floor area"]; },
-      note: () => "Satellite-estimated heights; about ±3 storeys. Switch to 3D to see them extruded."
+      note: () => "Satellite-estimated heights, about ±3 storeys, so the count above 18 m could be 219–429. Reliable for bands, not single buildings. Switch to 3D to see them extruded."
     },
     spacing: {
       title: "Gap to nearest neighbour",
@@ -246,12 +377,42 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
       stats: () => ["+0.6 °C", "surface temperature per 10 points of building coverage (100 m blocks)", "Owino market is among the hottest areas"],
       note: () => "Landsat 8/9 without atmospheric correction: read the pattern, not the absolute values."
     },
+    fabric: {
+      title: "Urban fabric type",
+      legend: () => D.meta.fabric.map((l, k) => [l, hex(FABRIC[k])]),
+      color: i => hex(FABRIC[D.b.fabric[i]]),
+      stats: () => {
+        const c = D.b.fabric.filter(v => v === 3).length;
+        return ["6 types", "of urban fabric, per 100 m block", `Dense low-rise holds ${pct(c, N)} of buildings but about 8% of floor area; the tall commercial core holds 11% and about 55%`];
+      },
+      note: () => "The same rule fails for different reasons: spread in dense low-rise, water and evacuation in the tall core, access in markets. Types come from judgement rules on coverage, height and market overlap, not land-use records."
+    },
+    newbuild: {
+      title: "Buildings appearing after 2016",
+      legend: () => [["New, under 2 m from a neighbour", tokens.accent], ["New, 2 m or more", hex(RAMP[3])], ["Other buildings", tokens.building]],
+      color: i => !D.b.new[i] ? tokens.building : D.b.gap[i] < 2 ? tokens.accent : hex(RAMP[3]),
+      stats: () => {
+        let n = 0, c = 0; for (let i = 0; i < N; i++) if (D.b.new[i]) { n++; if (D.b.gap[i] < 2) c++; }
+        return [pct(c, n), `of ${fmt(n)} buildings appearing after 2016 stand within 2 m of a neighbour`, "Within the same block, no detectable difference from older buildings"];
+      },
+      note: () => "A desk proxy for how far spacing rules reach. New means Google satellite presence rose from below 0.3 to at least 0.6; it is not a permit record. Gaps are to neighbours, not boundaries, and party walls may be lawful, so this shows no individual breach."
+    },
+    routes: {
+      title: "Fastest appliance routes at 15 km/h",
+      legend: () => [["Route to 10% or more of buildings", tokens.accent], ["Route to fewer", hex(RAMP[2])], ["Link whose loss costs most", tokens.fg]],
+      color: () => tokens.building,
+      stats: () => {
+        const m = Math.max(...D.routes.map(r => r.l));
+        return [`−${m.toFixed(0)} points`, "in buildings within 4 minutes (from 26%) if the most critical link beside the station is blocked", "No building becomes unreachable; the fastest response is what is lost"];
+      },
+      note: () => "Assumes the only mapped station, assumed speeds, and that appliances can use one-way streets. Road width, parked vehicles and stalls are not represented. Depends on junction detail that needs checking on the ground."
+    },
     priority: {
       title: "Block priority quintile",
       legend: () => [["Highest", tokens.accent], ["High", tokens["accent-soft"]], ["Middle", hex(RAMP[1])], ["Low", hex(RAMP[0])], ["Lowest / no data", tokens.building]],
       color: i => { const p = D.b.prio[i]; if (p == null) return tokens.building; let k = 0; while (k < 4 && p > state.prioQ[k]) k++; return [tokens.building, hex(RAMP[0]), hex(RAMP[1]), tokens["accent-soft"], tokens.accent][k]; },
       stats: () => ["4 measures", "combined per 100 m block: group size, hose reach, congested drive time and surface heat", "Equal weights: a choice, not a finding"],
-      note: () => "Each block's four percentiles are averaged; the map shows quintiles of the result."
+      note: () => "Screens horizontal spread and access only. Checked against six documented fire sites it did no better than chance so far (p = 0.38): high at Owino and Kisenyi, low at City House and Nakasero. Do not read it as fire risk."
     }
   };
 
@@ -264,9 +425,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   function layers() {
     const m = MODES[state.mode];
     const is3d = state.view === "3d";
-    const trig = [state.mode, state.gap, state.speed, state.second, tokens.building.join()];
+    const trig = [state.mode, state.gap, state.speed, state.second, tokens.building.join(), state.hard, hardRev, state.origin, state.step];
+    const sites = state.fires ? Object.values(D.fires.reduce((a, f) => {
+      (a[f.site] = a[f.site] || { site: f.site, lon: f.lon, lat: f.lat, n: 0 }).n++; return a; }, {})) : [];
     return [
-      new deck.PathLayer({ id: "roads", data: D.roads, getPath: d => d.p, widthUnits: "meters",
+      new deck.BitmapLayer({ id: "sat", image: "satellite.webp", bounds: D.meta.satBounds, visible: state.sat }),
+      new deck.PathLayer({ id: "roads", visible: !state.sat, data: D.roads, getPath: d => d.p, widthUnits: "meters",
         getWidth: d => d.c === 0 ? 9 : d.c === 1 ? 6 : 3.5, getColor: d => d.c < 2 ? tokens["road-major"] : tokens.road,
         updateTriggers: { getColor: [tokens.road.join()] } }),
       new deck.PathLayer({ id: "circle", data: [D.circle], getPath: d => d, widthUnits: "pixels", getWidth: 1.2,
@@ -274,11 +438,19 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
       new deck.PolygonLayer({ id: "markets", data: D.markets, getPolygon: d => d.ring, positionFormat: "XY",
         filled: false, stroked: true, lineWidthUnits: "pixels", getLineWidth: 2, getLineColor: tokens.accent, pickable: true }),
       new deck.PolygonLayer({ id: "b", data: idx, getPolygon: i => D.b.ring[i], positionFormat: "XY",
-        filled: true, stroked: false, extruded: is3d, wireframe: false,
+        filled: true, stroked: false, extruded: is3d, wireframe: false, opacity: state.sat ? 0.6 : 1,
         getElevation: i => Math.max(D.b.h[i], 2.5), elevationScale: 1,
         getFillColor: i => i === state.picked ? tokens.fg : m.color(i),
         pickable: true, material: { ambient: 0.55, diffuse: 0.55, shininess: 8 },
         updateTriggers: { getFillColor: [...trig, state.picked] } }),
+      new deck.PathLayer({ id: "routes", data: state.mode === "routes" ? D.routes : [], getPath: d => d.p, widthUnits: "pixels", capRounded: true,
+        getWidth: d => d.l > 0 ? 7 : 1 + 7 * Math.pow(d.s, 0.6), getColor: d => d.l > 0 ? tokens.fg : d.s >= 0.1 ? tokens.accent : hex(RAMP[2]), pickable: true,
+        parameters: { depthCompare: "always" }, updateTriggers: { getColor: [tokens.fg.join()] } }),
+      new deck.ScatterplotLayer({ id: "fires", data: sites, getPosition: d => [d.lon, d.lat], radiusUnits: "pixels", getRadius: d => 7 + 2 * d.n,
+        getFillColor: [22, 24, 27, 235], stroked: true, lineWidthUnits: "pixels", getLineWidth: 2, getLineColor: [255, 255, 255], pickable: true,
+        parameters: { depthCompare: "always" } }),
+      new deck.TextLayer({ id: "fire-counts", data: sites, getPosition: d => [d.lon, d.lat], getText: d => String(d.n), getSize: 11,
+        fontFamily: "Public Sans, Helvetica Neue, Arial, sans-serif", fontWeight: 600, getColor: [255, 255, 255], parameters: { depthCompare: "always" } }),
       new deck.ScatterplotLayer({ id: "stations", data: D.meta.stations.slice(0, state.second ? 2 : 1).map((p, k) => ({ p, k })),
         getPosition: d => d.p, radiusUnits: "pixels", getRadius: 8, stroked: true, lineWidthUnits: "pixels",
         getLineWidth: 3, getFillColor: d => d.k === 0 ? [227, 73, 72] : [255, 255, 255], getLineColor: [227, 73, 72], pickable: true,
@@ -297,6 +469,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
   function render() {
     const m = MODES[state.mode];
+    if (state.mode === "firepath" && firePath()) state.step = Math.min(state.step, firePath().max);
     const [big, what, more] = m.stats();
     document.getElementById("statBig").textContent = big;
     document.getElementById("statWhat").textContent = what;
@@ -309,14 +482,34 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
     document.querySelectorAll("[data-view]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.view === state.view)));
     document.getElementById("gapVal").textContent = state.gap + " m";
     document.getElementById("speedVal").textContent = SPEED_LABELS[state.speed];
+    const f = state.mode === "firepath" ? firePath() : null;
+    document.getElementById("firePanel").hidden = state.mode !== "firepath" || !f;
+    if (f) {
+      const st = document.getElementById("step");
+      st.max = f.max; state.step = Math.min(state.step, f.max); st.value = state.step;
+      document.getElementById("stepVal").textContent = state.step + "/" + f.max;
+    }
+    const nh = hardened().size;
+    const note = document.getElementById("hardNote");
+    note.innerHTML = nh ? `${fmt(nh)} treated as breaks: fire-resisting walls and roof, or cleared. ${state.gap !== 6 && state.hard ? "The shortlist was chosen at a 6 m gap. " : ""}Chosen by network position; field-check first.` +
+      (extra.size ? ` <button class="btn link" id="clearExtra">Clear ${extra.size} tapped</button>` : "") : "";
     renderInfo();
+    syncHash();
     if (deckgl) deckgl.setProps({ layers: layers() });
   }
 
   function renderInfo() {
-    const i = state.picked, list = document.getElementById("infoList");
-    document.getElementById("infoEmpty").hidden = i != null;
-    list.hidden = i == null;
+    const i = state.picked, list = document.getElementById("infoList"), acts = document.getElementById("infoActions"), fi = document.getElementById("fireInfo");
+    const site = state.site;
+    document.getElementById("infoTitle").textContent = site ? "Documented fires" : "Building";
+    document.getElementById("infoEmpty").hidden = i != null || site != null;
+    list.hidden = i == null; acts.hidden = i == null; fi.hidden = !site;
+    if (site) {
+      const items = D.fires.filter(f => f.site === site);
+      const date = t => new Date(t + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+      fi.innerHTML = items.map(f => `<div class="fire-item"><b>${date(f.date)}</b>: ${esc(f.place)}<br>${esc(f.what)}.<br><a href="${esc(f.url)}" target="_blank" rel="noopener">Read the report</a></div>`).join("") +
+        `<p class="note">As reported in the press, sometimes disputed. Location: ${esc(items[0].quality)}.</p>`;
+    }
     if (i == null) return;
     const t = D.b.tt[speedKey()][i];
     const rows = [
@@ -328,9 +521,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
       [`Group size (${state.gap} m)`, fmt(D.b.groups[state.gap][i])],
       ["Farthest point to road", `${D.b.farAny[i]}–${D.b.farPub[i]} m`],
       [`Drive time (${SPEED_LABELS[state.speed]})`, t >= 99 ? "no route" : t.toFixed(1) + " min"],
+      ["Urban fabric", D.meta.fabric[D.b.fabric[i]]],
+      ["Appears after 2016", D.b.new[i] ? "yes (satellite)" : "no"],
+      ...(state.shortSet.has(i) ? [["Hardening shortlist", "yes"]] : []),
       ["Footprint source", D.meta.sources[D.b.src[i]]]
     ];
+    rows[rows.findIndex(r => r[0].startsWith("Group size"))][1] = fmt(sizes()[i]) || "0";
     list.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+    acts.innerHTML = `<button class="btn" data-act="fire">Start a fire here</button><button class="btn" data-act="harden">${extra.has(i) ? "Remove hardening" : "Harden this building"}</button>`;
   }
 
   const motion = ms => matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : ms;
@@ -350,6 +548,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
       borderRadius: "6px", padding: "6px 9px", fontFamily: css("--font-body"), fontSize: "12.5px", maxWidth: "260px", lineHeight: "1.4" };
     if (layer.id === "markets") return { html: `<b>${esc(object.name)}</b><br>Market`, style };
     if (layer.id === "stations") return { html: object.k === 0 ? "<b>Kampala Fire Station</b>" : "<b>Modelled second station</b><br>Search zone, not a chosen site", style };
+    if (layer.id === "fires") return { html: `<b>${esc(object.site)}</b><br>${object.n} documented ${object.n === 1 ? "fire" : "fires"}. Tap for reports.`, style };
+    if (layer.id === "routes") return { html: `Fastest route to ${(100 * object.s).toFixed(0)}% of buildings` + (object.l > 0 ? `<br>Blocked: ${object.l.toFixed(0)} points fewer within 4 min` : ""), style };
     if (layer.id !== "b") return null;
     const i = object, name = D.b.name[i], pl = D.b.places[i];
     const head = name ? `<b>${esc(name)}</b>` : pl ? "<b>Building</b>" : "";
@@ -360,15 +560,79 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
   // --- wiring -------------------------------------------------------------------------------
   document.getElementById("modes").addEventListener("click", e => {
-    const b = e.target.closest("button[data-mode]"); if (!b) return; state.mode = b.dataset.mode; render();
+    const b = e.target.closest("button[data-mode]"); if (!b) return; stopPlay(); state.mode = b.dataset.mode; render();
   });
   document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
   document.getElementById("rotL").addEventListener("click", () => moveTo({ bearing: (state.vs.bearing || 0) - 30 }, 350));
   document.getElementById("rotR").addEventListener("click", () => moveTo({ bearing: (state.vs.bearing || 0) + 30 }, 350));
   document.getElementById("north").addEventListener("click", () => moveTo({ bearing: 0 }, 350));
-  document.getElementById("gap").addEventListener("input", e => { state.gap = +e.target.value; state.mode = "groups"; render(); });
+  document.getElementById("gap").addEventListener("input", e => { state.gap = +e.target.value; if (state.mode !== "firepath") state.mode = "groups"; render(); });
   document.getElementById("speed").addEventListener("input", e => { state.speed = +e.target.value; state.mode = "response"; render(); });
   document.getElementById("second").addEventListener("change", e => { state.second = e.target.checked; state.mode = "response"; render(); });
+
+  const toggles = { sat: "sat", fires: "fires" };
+  for (const k in toggles) document.getElementById(k).addEventListener("change", e => { state[k] = e.target.checked; if (k === "fires" && !state.fires) state.site = null; render(); });
+  document.getElementById("hard").addEventListener("change", e => { state.hard = e.target.checked; if (state.mode !== "firepath") state.mode = "groups"; render(); });
+  document.getElementById("hardNote").addEventListener("click", e => { if (e.target.id === "clearExtra") { extra.clear(); hardRev++; render(); } });
+  document.getElementById("play").addEventListener("click", () => { if (timer) stopPlay(); else startPlay(); });
+  document.getElementById("step").addEventListener("input", e => { stopPlay(); state.step = +e.target.value; render(); });
+  document.getElementById("infoActions").addEventListener("click", e => {
+    const a = e.target.dataset.act, i = state.picked; if (!a || i == null) return;
+    if (a === "fire") startFire(i);
+    if (a === "harden") { if (extra.has(i)) extra.delete(i); else extra.add(i); hardRev++; render(); }
+  });
+  document.getElementById("copyLink").addEventListener("click", async e => {
+    syncHash();
+    try { await navigator.clipboard.writeText(location.href); e.target.textContent = "Link copied"; }
+    catch { e.target.textContent = "Copy it from the address bar"; }
+    setTimeout(() => { e.target.textContent = "Copy a link to this view"; }, 2000);
+  });
+  const searchBox = document.getElementById("search"), results = document.getElementById("results");
+  searchBox.addEventListener("input", () => {
+    const q = searchBox.value.trim().toLowerCase();
+    const hits = q.length < 2 ? [] : searchIndex.filter(s => s.key.includes(q)).slice(0, 8);
+    results.hidden = !hits.length;
+    results.innerHTML = hits.map((h, k) => `<button data-k="${searchIndex.indexOf(h)}">${esc(h.label)}</button>`).join("");
+  });
+  results.addEventListener("click", e => {
+    const h = searchIndex[+e.target.dataset.k]; if (!h) return;
+    results.hidden = true; searchBox.value = h.label;
+    state.site = null; state.picked = h.i == null ? null : h.i;
+    if (state.mode === "firepath" && h.i != null) { startFire(h.i); }
+    moveTo({ longitude: h.lon, latitude: h.lat, zoom: 16.4 }, 700);
+    render();
+  });
+  document.addEventListener("click", e => { if (!e.target.closest(".search")) results.hidden = true; });
+
+  // --- shareable state in the URL -----------------------------------------------------------
+  function syncHash() {
+    const p = new URLSearchParams({ m: state.mode, g: state.gap, s: state.speed });
+    if (state.view === "3d") p.set("v", "3d");
+    if (state.second) p.set("two", 1);
+    if (state.sat) p.set("sat", 1);
+    if (!state.fires) p.set("nofires", 1);
+    if (state.hard) p.set("hard", 1);
+    if (state.picked != null) p.set("b", state.picked);
+    if (state.origin != null) { p.set("o", state.origin); p.set("st", state.step); }
+    if (extra.size) p.set("x", [...extra].join("."));
+    history.replaceState(null, "", "#" + p);
+  }
+  function readHash() {
+    const p = new URLSearchParams(location.hash.slice(1));
+    const int = (k, lo, hi) => { const v = p.get(k); if (v == null || v === "") return null; const n = Number(v); return Number.isInteger(n) && n >= lo && n <= hi ? n : null; };
+    if (MODES[p.get("m")]) state.mode = p.get("m");
+    const g = int("g", 0, 10); if (g != null) state.gap = g;
+    const s = int("s", 0, 5); if (s != null) state.speed = s;
+    state.second = p.has("two"); state.sat = p.has("sat"); state.fires = !p.has("nofires"); state.hard = p.has("hard");
+    state.picked = int("b", 0, N - 1); state.origin = int("o", 0, N - 1);
+    const st = int("st", 0, 9999); if (st != null) state.step = st;
+    for (const x of (p.get("x") || "").split(".")) { const n = Number(x); if (x && Number.isInteger(n) && n >= 0 && n < N) extra.add(n); }
+    if (extra.size) hardRev++;
+    if (p.get("v") === "3d") state.view = "3d";
+    document.getElementById("gap").value = state.gap; document.getElementById("speed").value = state.speed;
+    document.getElementById("second").checked = state.second; document.getElementById("sat").checked = state.sat;
+    document.getElementById("fires").checked = state.fires; document.getElementById("hard").checked = state.hard;
+  }
 
   const retheme = () => { readTokens(); render(); };
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", retheme);
@@ -379,7 +643,20 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
     D = data; N = D.meta.n; idx = Array.from({ length: N }, (_, i) => i);
     state.heatQ = quantiles(D.b.lst, [0.2, 0.4, 0.6, 0.8]);
     state.prioQ = quantiles(D.b.prio, [0.2, 0.4, 0.6, 0.8]);
-    state.vs = { longitude: D.meta.centre[0], latitude: D.meta.centre[1], zoom: 14.2, pitch: 0, bearing: 0, maxPitch: 0 };
+    state.shortSet = new Set(D.shortlist);
+    document.getElementById("hardN").textContent = fmt(D.shortlist.length);
+    adj = Array.from({ length: N }, () => []);
+    for (let k = 0; k < D.links.i.length; k++) { adj[D.links.i[k]].push([D.links.j[k], D.links.g[k]]); adj[D.links.j[k]].push([D.links.i[k], D.links.g[k]]); }
+    const centroid = i => { const r = D.b.ring[i]; return [r[0], r[1]]; };
+    searchIndex = [];
+    for (let i = 0; i < N; i++) {
+      const [lon, lat] = centroid(i);
+      if (D.b.name[i]) searchIndex.push({ label: D.b.name[i], key: D.b.name[i].toLowerCase(), i, lon, lat });
+      for (const pl of D.b.places[i] || []) if (!pl.startsWith("+")) searchIndex.push({ label: pl, key: pl.toLowerCase(), i, lon, lat });
+    }
+    for (const m of D.markets) searchIndex.push({ label: m.name, key: m.name.toLowerCase(), i: null, lon: m.ring[0], lat: m.ring[1] });
+    readHash();
+    state.vs = { longitude: D.meta.centre[0], latitude: D.meta.centre[1], zoom: 14.2, pitch: state.view === "3d" ? 55 : 0, bearing: state.view === "3d" ? -25 : 0, maxPitch: state.view === "3d" ? 80 : 0 };
     deckgl = new deck.Deck({
       parent: document.getElementById("deck"),
       viewState: state.vs,
@@ -387,7 +664,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
       controller: { dragRotate: true, touchRotate: true, keyboard: true },
       getTooltip: tooltip,
       layers: layers(),
-      onClick: info => { state.picked = info.layer && info.layer.id === "b" ? info.object : null; render(); },
+      onClick: info => {
+        const id = info.layer && info.layer.id;
+        if (id === "fires") { state.site = info.object.site; state.picked = null; render(); return; }
+        state.site = null;
+        const i = id === "b" ? info.object : null;
+        if (i != null && state.mode === "firepath") { startFire(i); return; }
+        state.picked = i; render();
+      },
       getCursor: ({ isHovering }) => isHovering ? "pointer" : "grab"
     });
     document.getElementById("loading").hidden = true;
